@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Copyright (C) 2025 Jean Yves Beaucamp
+# CERN LXPlus/LXTunnel/alike hostname builder
+
+host_arg=""
+
+do_hostname_only=false
+
+#------------------------------------------
+# Parse cmd line arguments
+#------------------------------------------
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o|--hostname-only)
+            do_hostname_only=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: lxhost [-o|--hostname-only] [host]"
+            echo
+            echo "CERN LXPlus, LXTunnel, and similar hostname builder."
+            echo
+            echo "Options:"
+            echo "  -o, --hostname-only     Do not add the '.cern.ch' suffix to the host name."
+            echo "  -h, --help              Show this help message and exit."
+            echo
+            echo "The optional argument is used to get the CERN machine hostname:"
+            echo " + '': lxplus"
+            echo " + '<NUM>': lxplus<NUM>"
+            echo " + 'abm<NUM>' | 'b<NUM>: lxplus8s0<NUM>"
+            echo " + 'arm': lxplus-arm"
+            echo " + 'lxtunnel' | 'tunnel' | 'lxt' | 't': lxtunnel"
+            echo
+            echo "Examples:"
+            echo "  lxhost            → lxplus.cern.ch"
+            echo "  lxhost -o         → lxplus"
+            echo "  lxhost 900        → lxplus900.cern.ch"
+            exit 0
+            ;;
+        --) # stop parsing
+            shift
+            break
+            ;;
+        -*)
+            echo "lxhost: unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            if [[ -n "$host_arg" ]]; then
+                echo "lxhost: unknown argument: $1" >&2
+                exit 1
+            fi
+            host_arg="$1"
+            shift
+            ;;
+    esac
+done
+
+
+#------------------------------------------
+# Get target hostname
+#------------------------------------------
+host=""
+
+if [[ -z "$host_arg" ]]; then
+    host="lxplus"
+elif [[ "$host_arg" =~ ^abm([0-9]+)$ || "$host_arg" =~ ^ab([0-9]+)$ || "$host_arg" =~ ^bm([0-9]+)$ || "$host_arg" =~ ^b([0-9]+)$ ]]; then
+    host_number=$((10#${BASH_REMATCH[1]})) # Remove leading zeros
+    host="lxplus8s0${host_number}"
+elif [[ "$host_arg" = "lxtunnel" || "$host_arg" = "tunnel" || "$host_arg" = "t" ]]; then
+    host="lxtunnel"
+elif [[ "$host_arg" = "arm" ]]; then
+    host="lxplus-arm"
+else
+    host="lxplus$host_arg"
+fi
+
+target="${host}"
+
+if [[ "$do_hostname_only" = false ]]; then
+    target="${target}.cern.ch"
+fi
+
+echo $target
+
+exit 0

@@ -1,19 +1,20 @@
 # lxp-session-manager
 
-This repository contains some useful helper scripts for managing CERN LXPlus SSH sessions on both macOS and Linux.
+This repository contains some useful helper scripts for managing CERN LXPlus SSH sessions on both macOS and Linux. In most cases (network instabilities aside), they will bring back the seamless LXPlus experience that we were all used to for so long, without OTP frustrations and mental health breakdowns that come from having to go back to your phone every couple minutes :).
 
 - `lxp`: main high-level tool to manage LXPlus connections, initializing SSH [ControlMaster](https://cern.service-now.com/service-portal?id=kb_article&n=KB0009800) (CM) sessions and Kerberos tokens when necessary. It has shortcuts to login to specific LXPlus machines (e.g. LXTunnel, LXPlus-ARM, or some ATLAS nodes), and VNC port-tunneling. For those of us working in operations at the ATLAS experiment, there are also shortcuts to tunnel Point-1 gateway proxies initialized in LXPlus, in case you need to access the internal P1 network.
+
+A few low-level tools used internally by the main scripts are also included:
 - `kerb`: initializes and auto-renews Kerberos tokens.
 - `sshcm-otp`: initializes and manages SSH CM sessions to LXPlus, including the 2-factor authentication OTP retrieval from keys stored in a secure GPG keychain.
 
-In practice, you should _almost always_ be using `lxp` directly. In most cases (network instabilities aside), this will bring back the seamless LXPlus experience that we were all used to for so long, without OTP frustrations and mental health breakdowns that come from having to go back to your phone every couple minutes :).
 
 Contributions with shortcuts/aliases specific for ATLAS or other CERN experiments are welcomed!
 
 For questions and/or suggestions, please contact me on Mattermost or to `jean.yves.beaucamp@cern.ch`.
 
 
-# Requirements
+## Requirements
 
 The included tools depend on the following auxiliary packages
 - [krb5](https://web.mit.edu/kerberos) (no need to install a custom version in macOS, the built-in one works),
@@ -27,9 +28,9 @@ Optional (and recommended):
 Some will be pre-installed, and the remaining ones should be available through `brew` on macOS, or using your Linux distribution package manager.
 
 
-# Setup
+## Setup
 
-## Installation
+### Installation
 
 The bundled scripts have no installer, so we suggest to clone the repository in `~/.local/bin`, and add its directory to your local `PATH`.
 
@@ -42,7 +43,7 @@ export PATH="$HOME/.local/bin/lxp-session-manager:$PATH"
 ```
 
 
-## Kerberos
+### Kerberos
 
 In order to use Kerberos to authenticate with your CERN account, you'll first need to setup the correct configuration in your local client (`krb5.conf`). Follow the official CERN instructions [here](https://linux.web.cern.ch/docs/kerberos-access/#client-configuration-kerberos).
 
@@ -59,7 +60,7 @@ The keytab must only be readable by you. The correct permissions should be set b
 **Note**: The built-in version of `kinit` in macOS stores passwords in the macOS encrypted keychain when successfully initializing a Kerberos token with `--keychain`, so you could just use that. However, the tools in this repository will use `k5start` if available, which does not support this feature, so setting up a keytab is recommended.
 
 
-## SSH client
+### SSH client
 
 You'll need to update the configuration of your local SSH client, to enable the delegation of Kerberos tokens and the use of ControlMaster sessions. The minimum required settings look like this
 ```
@@ -110,7 +111,7 @@ HOST lxtunnel lxtunnel.cern.ch
 ```
 
 
-## 2FA configuration
+### 2FA configuration
 
 To avoid having to reach for your phone every time you have to initialize a new SSH CM session to LXPlus, you can store the 2FA `otpauth` master key encrypted in a GPG key on your local machine, and generate new OTPs transparently. As long as you encrypt and follow safe practices on your GPG key, this is just as safe as using TouchID in the cern SSO web-authentication. You also need to have the correct global time in your local computer (same as in your phone if using OTP apps)
 

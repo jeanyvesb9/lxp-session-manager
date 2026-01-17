@@ -21,6 +21,7 @@ do_kerb_only=false
 
 do_cm_start_only=false
 do_cm_exit_only=false
+do_cm_exit_all_only=false
 do_cm_status_only=false
 
 #------------------------------------------
@@ -62,6 +63,11 @@ while [[ $# -gt 0 ]]; do
             do_cm_exit_only=true
             shift
             ;;
+        -E|--cm-exit-all)
+            do_cm_exit_all_only=true
+            do_cm_exit_only=true
+            shift
+            ;;
         -s|--cm-status|--cms)
             do_cm_status_only=true
             shift
@@ -80,6 +86,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -k, --kerb              Open Kerberos token only using k5start, with the keytab located at \$HOME/.keytab."
             echo "  -c, --cm                Open SSH ControlMaster background session only."
             echo "  -e, --cm-exit, --cme    Exit SSH ControlMaster background session only."
+            echo "  -E, --cm-exit-all       Exit all SSH ControlMaster background sessions only."
             echo "  -s, --cm-status, --cms  Show all valid SSH ControlMaster sessions only."
             echo "  -h, --help              Show this help message and exit."
             echo
@@ -148,20 +155,7 @@ fi
 #------------------------------------------
 # Get target user/host
 #------------------------------------------
-if [[ -z "$lxhost_arg" ]]; then
-    lxhost="lxplus"
-elif [[ "$lxhost_arg" =~ ^abm([0-9]+)$ || "$lxhost_arg" =~ ^ab([0-9]+)$ || "$lxhost_arg" =~ ^bm([0-9]+)$ || "$lxhost_arg" =~ ^b([0-9]+)$ ]]; then
-    host_number=$((10#${BASH_REMATCH[1]})) # Remove leading zeros
-    lxhost="lxplus8s0${host_number}"
-elif [[ "$lxhost_arg" = "lxtunnel" || "$lxhost_arg" = "tunnel" || "$lxhost_arg" = "t" ]]; then
-    lxhost="lxtunnel"
-elif [[ "$lxhost_arg" = "arm" ]]; then
-    lxhost="lxplus-arm"
-else
-    lxhost="lxplus$lxhost_arg"
-fi
-
-target="${user}@${lxhost}.cern.ch"
+target="${user}@$(lxhost $lxhost_arg)"
 
 
 #------------------------------------------
@@ -206,15 +200,28 @@ fi
 #------------------------------------------
 # First check if the CM link exists
 if [[ "$do_cm_exit_only" = true ]]; then
-    for cm_session in "${cms[@]}"; do
-        if [[ "$cm_session" == "$target" ]]; then
-            ssh -O exit "$target"
-            exit 0
+    if [[ "$do_cm_exit_all_only" = true ]]; then
+        if [[ "${#cms[@]}" == 0 ]]; then
+            echo "lxp: no ssh ControlMaster sessions to exit" >&2
+            exit 1
         fi
-    done
 
-    echo "lxp: no ssh ControlMaster session for $target" >&2
-    exit 1
+        for cm_session in "${cms[@]}"; do
+            echo -n "${cm_session}: "
+            ssh -O exit "$cm_session"
+        done
+        exit 0
+
+    else
+        for cm_session in "${cms[@]}"; do
+            if [[ "$cm_session" == "$target" ]]; then
+                ssh -O exit "$cm_session"
+            fi
+        done
+
+        echo "lxp: no ssh ControlMaster session for $target" >&2
+        exit 1
+    fi
 fi
 
 
