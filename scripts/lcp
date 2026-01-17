@@ -54,8 +54,8 @@ while [[ $# -gt 0 ]]; do
             echo "   or  lcp [OPTION]... SRC [SRC]... [lxhost]:DEST"
             echo
             echo "LXPlus rsync wrapper."
-            echo "The '-ach --partial --info=progress2' options are used by default."
-            echo "A persistent background ControlMaster (CM) session will be initialized for each ssh target if necessary."
+            echo "The '-ach --partial --info=progress2' rsync options are used by default."
+            echo "A Keberos ticket and a persistent background ControlMaster (CM) session will be initialized for each ssh target if necessary."
             echo
             echo "Options:"
             echo "  -u, --user USER         Use the specified USER instead of \$CERN_USERNAME (or \$USER)."
