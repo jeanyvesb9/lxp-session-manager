@@ -8,6 +8,7 @@ This repository contains some useful helper scripts for managing CERN LXPlus SSH
 A few low-level tools used internally by the main scripts are also included:
 - `kerb`: initializes and auto-renews Kerberos tokens.
 - `sshcm-otp`: initializes and manages SSH CM sessions to LXPlus, including the 2-factor authentication OTP retrieval from keys stored in a secure GPG keychain.
+- `lxhost`: builds the LXPlus hostname from mnemonics and other shortcuts.
 
 
 Contributions with shortcuts/aliases specific for ATLAS or other CERN experiments are welcomed!
