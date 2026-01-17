@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+# Copyright (C) 2025 Jean Yves Beaucamp
+# CERN LXPlus ssh connection manager
+
+if [[ ! -z "$CERN_USERNAME" ]]; then
+    user="$CERN_USERNAME"
+else
+    user="$USER"
+fi
+
+# rsync options
+do_rsync_verbose=false
+rsync_info="progress2"
+do_rsync_compress=false
+do_rsync_checksum=true
+
+# Source or destination lxhost argument
+began_parsing_destsrc=false
+lxhost_arg=""
+
+is_src_remote=false
+sources=()
+
+is_dest_remote=false
+dest=""
+
+#------------------------------------------
+# Parse cmd line arguments
+#------------------------------------------
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -u|--user)
+            user="$2"
+            shift 2
+            ;;
+        -v|--verbose)
+            do_rsync_verbose=true
+            shift
+            ;;
+        -s|--single-files)
+            rsync_info="progress"
+            shift
+            ;;
+        -c|--compress)
+            do_rsync_compress=true
+            shift
+            ;;
+        -n|--no-checksum)
+            do_rsync_checksum=false
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: lcp [OPTION]... [lxhost]:SRC [SRC]... DEST"
+            echo "   or  lcp [OPTION]... SRC [SRC]... [lxhost]:DEST"
+            echo
+            echo "LXPlus rsync wrapper."
+            echo "The '-ach --partial --info=progress2' options are used by default."
+            echo "A persistent background ControlMaster (CM) session will be initialized for each ssh target if necessary."
+            echo
+            echo "Options:"
+            echo "  -u, --user USER         Use the specified USER instead of \$CERN_USERNAME (or \$USER)."
+            echo "  -v, --verbose           Print the paths to each transferred file (--verbose rsync option)."
+            echo "  -s, --single-files      Show the progress for each transferred file individually (--info=progress or --progress rsync options)."
+            echo "  -c, --compress          Enabling transfer compression at the expense of CPU usage (--compress rsync option)."
+            echo "  -n, --no-checksum       Use timestamps and block sizes instead of checksums for the sync (disable the --checksum option in rsync)."
+            echo "  -h, --help              Show this help message and exit."
+            echo
+            echo "The lxhost argument is used to get the LXPlus host:"
+            echo " + '': lxplus"
+            echo " + '<NUM>': lxplus<NUM>"
+            echo " + 'abm<NUM>' | 'b<NUM>: lxplus8s0<NUM>"
+            echo " + 'arm': lxplus-arm"
+            echo " + 'lxtunnel' | 'tunnel' | 'lxt' | 't': lxtunnel"
+            echo
+            echo "Examples:"
+            echo "  lcp :a/b/c.txt .                → rsync -ach --partial --info=progress2 \$CERN_USERNAME@lxplus.cern.ch:a/b/c.txt ."
+            echo "  lcp :a/b/c.txt a/b/d.txt .      → rsync -ach --partial --info=progress2 \$CERN_USERNAME@lxplus.cern.ch:a/b/{c,d}.txt ."
+            echo "  lcp test_dir abm9:/tmp/test     → rsync -ach --partial --info=progress2 test_dir \$CERN_USERNAME@lxplus8s09.cern.ch:/tmp/test"
+            exit 0
+            ;;
+        --) # stop parsing
+            shift
+            break
+            ;;
+        -*)
+            echo "lcp: unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            if [[ "$began_parsing_destsrc" = false ]]; then
+                # First argument (must be a source!)
+                
+                # Case: host:[src] ... dest
+                if [[ "$1" =~ ^([^:/]*):(.*)$ ]]; then
+                    is_src_remote=true
+                    lxhost_arg="${BASH_REMATCH[1]}"
+
+                    # Check if there is a source after the ':'
+                    if [[ -n "${BASH_REMATCH[2]}" ]]; then
+                        sources+=("${BASH_REMATCH[2]}")
+                    fi
+
+                    shift
+
+                # Case: host :src ... dest
+                elif [[ $# -gt 2 && "$2" =~ ^:(.+)$ ]]; then
+                    is_src_remote=true
+                    lxhost_arg="$1"
+                    sources+=("${BASH_REMATCH[1]}")
+
+                    shift 2
+
+                # Case: host : src ... dest
+                elif [[ $# -gt 3 && "$2" = ":" ]]; then
+                    is_src_remote=true
+                    lxhost_arg="$1"
+
+                    shift 2 # Leave the src for later parsing
+
+                # Case: src ... (host:dest | host :dest | host : dest)
+                else
+                    sources+=("$1")
+                    shift
+                fi
+
+                began_parsing_destsrc=true
+
+            else
+                # Subsequent arguments (could be sources or destination)
+
+                # Case: src ... host:dest
+                if [[ $# -eq 1 && "$1" =~ ^([^:/]*):(.+)$ ]]; then
+                    is_dest_remote=true
+                    lxhost_arg="${BASH_REMATCH[1]}"
+                    dest="${BASH_REMATCH[2]}"
+
+                    shift
+
+                # Case: src ... host: dest
+                elif [[ $# -eq 2 && "$1" =~ ^([^:/]+):$ ]]; then
+                    is_dest_remote=true
+                    lxhost_arg="${BASH_REMATCH[1]}"
+                    dest="$2"
+
+                    shift 2
+
+                # Case: host:src ... dest
+                elif [[ $# -eq 1 ]]; then
+                    # Check that the argument either doesn't have a ':', or it has a ':' only after a first '/'
+                    # (but not necessarily immediately after it)
+                    if [[ "$1" =~ ^([^:]+|[^:/]/.*)$ ]]; then
+                        dest="$1"
+                        shift
+                    else
+                        echo "lcp: missing path for remote destination" >&2
+                        exit 1
+                    fi
+
+                # Other sources
+                else
+                    # Check that the argument either doesn't have a ':', or it has a ':' only after a first '/'
+                    # (but not necessarily immediately after it)
+                    if [[ "$1" =~ ^([^:]+|[^:/]/.*)$ ]]; then
+                        sources+=("$1")
+                        shift
+                    else
+                        echo "lcp: cannot have sources from multiple remote hosts" >&2
+                        exit 1
+                    fi
+                fi
+            fi
+            ;;
+    esac
+done
+
+# Check cmd line options
+if [[ "$is_src_remote" = true && "$is_dest_remote" = true ]]; then
+    echo "lcp: cannot have both remote sources and destination" >&2
+    exit 1
+fi
+
+if [[ "$is_src_remote" = false && "$is_dest_remote" = false ]]; then
+    echo "lcp: missing remote sources or destination" >&2
+    exit 1
+fi
+
+if [[ "${#sources[@]}" -eq 0 ]]; then
+    echo "lcp: missing source path(s)" >&2
+    exit 1
+fi
+
+if [[ -z "$dest" ]]; then
+    echo "lcp: missing destination path" >&2
+    exit 1
+fi
+
+
+#------------------------------------------
+# Initialize kerberos token
+#------------------------------------------
+# First check if we have a valid ticket already
+if [[ $(kerb -c 2>/dev/null) != "There is a valid Kerberos ticket already for "* ]]; then
+    kerb -r $user
+fi
+
+
+#------------------------------------------
+# Get target user/host
+#------------------------------------------
+target="${user}@$(lxhost $lxhost_arg)"
+
+
+#------------------------------------------
+# Get ControlMaster directory path
+#------------------------------------------
+if [[ "$(uname)" == "Linux" ]]; then
+    CM_PATH="/run/user/$(id -u)"
+elif [[ "$(uname)" == "Darwin" ]]; then
+    CM_PATH="$HOME/.ssh"
+fi
+
+
+#------------------------------------------
+# ControlMaster session initialization
+#------------------------------------------
+if [[ ! -e "$CM_PATH/$target:22" ]]; then
+    sshcm-otp "$target" "$(pass otp "cern-${user}")"
+fi
+
+
+#------------------------------------------
+# Main rsync call(s)
+#------------------------------------------
+args=("-ah" "--partial" "--info=${rsync_info}")
+
+if [[ "$do_rsync_verbose" = true ]]; then
+    args+=("--verbose")
+fi
+
+if [[ "$do_rsync_compress" = true ]]; then
+    args+=("--compress")
+fi
+
+if [[ "$do_rsync_checksum" = true ]]; then
+    args+=("--checksum")
+fi
+
+if [[ "$is_src_remote" = true ]]; then
+    # Copy each source individually
+    for src in "${sources[@]}"; do
+        rsync "${args[@]}" "${target}:${src}" "${dest}"
+    done
+else
+    for src in "${sources[@]}"; do
+        args+=("${src}")
+    done
+
+    rsync "${args[@]}" "${target}:${dest}"
+fi
+
+exit 0

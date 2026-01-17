@@ -3,6 +3,7 @@
 This repository contains some useful helper scripts for managing CERN LXPlus SSH sessions on both macOS and Linux. In most cases (network instabilities aside), they will bring back the seamless LXPlus experience that we were all used to for so long, without OTP frustrations and mental health breakdowns that come from having to go back to your phone every couple minutes :).
 
 - `lxp`: main high-level tool to manage LXPlus connections, initializing SSH [ControlMaster](https://cern.service-now.com/service-portal?id=kb_article&n=KB0009800) (CM) sessions and Kerberos tokens when necessary. It has shortcuts to login to specific LXPlus machines (e.g. LXTunnel, LXPlus-ARM, or some ATLAS nodes), and VNC port-tunneling. For those of us working in operations at the ATLAS experiment, there are also shortcuts to tunnel Point-1 gateway proxies initialized in LXPlus, in case you need to access the internal P1 network.
+- `lcp`: wrapper around `rsync`, automatically resolving the LXPlus hostname and opening Kerberos tickets and SSH CM sessions for the transfer.
 
 A few low-level tools used internally by the main scripts are also included:
 - `kerb`: initializes and auto-renews Kerberos tokens.
