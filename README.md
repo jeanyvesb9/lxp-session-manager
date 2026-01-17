@@ -40,7 +40,7 @@ Since for most people your CERN username will be different from your local usern
 Therefore, you should add the following lines (replacing your username) to your local `.zshrc`, `.bashrc`, or equivalent:
 ```
 export CERN_USERNAME="username"
-export PATH="$HOME/.local/bin/lxp-session-manager:$PATH"
+export PATH="$HOME/.local/bin/lxp-session-manager/scripts:$PATH"
 ```
 
 
