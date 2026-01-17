@@ -66,14 +66,14 @@ You'll need to update the configuration of your local SSH client, to enable the 
 HOST lxplus*
     GSSAPIAuthentication yes        # Kerberos auth
     GSSAPIDelegateCredentials yes   # Kerberos ticket delegation
-    ControlPath ~/.ssh//%r@%h:%p    # CM session socket location (for macOS)
+    ControlPath ~/.ssh/%r@%h:%p    # CM session socket location (for macOS)
     ControlMaster auto              # Always use CM sockets for new SSH connections
     ControlPersist yes              # Persist the socket after the first session is destroyed
     
 HOST lxtunnel*
     # Same here
 ```
-In Linux installations, the usual location for CM session sockets is `/run/user/%i/%r@%h:%p`.
+In Linux installations, change the location for CM session sockets to `/run/user/%i/%r@%h:%p` (required for the included scripts).
 
 Usually, a few more options will be needed, so a day-to-day optimized configuration will be
 ```
@@ -88,7 +88,7 @@ HOST lxplus*
     ForwardAgent yes                # Forward public keys when logging in to other hosts from within LXPlus
     CheckHostIP no                  # Ignore IP addresses, since they move a lot within the CERN network
     ServerAliveInterval 100         # Keep the server alive even during short downtimes
-    ControlPath ~/.ssh//%r@%h:%p    # CM session socket location (for macOS)
+    ControlPath ~/.ssh/%r@%h:%p    # CM session socket location (for macOS)
     ControlMaster auto              # Always use CM sockets for new SSH connections
     ControlPersist yes              # Persist the socket after the first session is destroyed
     
@@ -102,7 +102,7 @@ HOST lxtunnel lxtunnel.cern.ch
     ForwardAgent yes
     CheckHostIP no
     ServerAliveInterval 100
-    ControlPath ~/.ssh//%r@%h:%p
+    ControlPath ~/.ssh/%r@%h:%p
     ControlMaster auto
     ControlPersist yes
     Protocol 2                      # Use the SSH protocol version 2
