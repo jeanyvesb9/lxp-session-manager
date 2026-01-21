@@ -5,6 +5,8 @@ This repository contains some useful helper scripts for managing CERN LXPlus SSH
 - `lxp`: main high-level tool to manage LXPlus connections, initializing SSH [ControlMaster](https://cern.service-now.com/service-portal?id=kb_article&n=KB0009800) (CM) sessions and Kerberos tokens when necessary. It has shortcuts to login to specific LXPlus machines (e.g. LXTunnel, LXPlus-ARM, or some ATLAS nodes), and VNC port-tunneling. For those of us working in operations at the ATLAS experiment, there are also shortcuts to tunnel Point-1 gateway proxies initialized in LXPlus, in case you need to access the internal P1 network.
 - `lcp`: wrapper around `rsync`, automatically resolving the LXPlus hostname and opening Kerberos tickets and SSH CM sessions for the transfer.
 
+**Note**: If a connection is kept open too long (> 24hs), the Kerberos token within the remote node will expire, so attempts to login to the node will take ~10-15 seconds (until the attempt to lock `.Xauthority` times out), and calls to `lcp` using that node will fail. You also won't be able to access any file that requires an authentication (AFS or EOS). This can easily solve this by calling `kinit` within the node (after waiting for the lock timeout), and manually providing your password. You can avoid this issue entirely by keeping a [(CERN-customized) tmux instance](https://hsf-training.github.io/analysis-essentials/shell-extras/persistent-screen.html) running.
+
 A few low-level tools used internally by the main scripts are also included:
 - `kerb`: initializes and auto-renews Kerberos tokens.
 - `sshcm-otp`: initializes and manages SSH CM sessions to LXPlus, including the 2-factor authentication OTP retrieval from keys stored in a secure GPG keychain.
@@ -23,6 +25,7 @@ The included tools depend on the following auxiliary packages
 - [pass](https://www.passwordstore.org),
 - [pass-otp](https://github.com/~/pass-otp),
 - [expect](https://www.nist.gov/services-resources/software/expect),
+- [rsync](https://rsync.samba.org) (on macOS, you'll also need an updated `rsync` version, which you can install from `brew`).
 
 Optional (and recommended):
 - [kstart](https://www.eyrie.org/~eagle/software/kstart): modified version of `kinit` (`k5start`) which runs as a deamon, to maintain the ticket for a maximum of 7 days (with the CERN configuration).
