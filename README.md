@@ -47,6 +47,13 @@ export CERN_USERNAME="username"
 export PATH="$HOME/.local/bin/lxp-session-manager/scripts:$PATH"
 ```
 
+To enable tab-completion of remote paths for `lcp` in zsh, include the following additional lines in `.zshrc`
+```
+fpath=("$HOME/.local/bin/lxp-session-manager/autocomplete/zsh" $fpath)
+autoload -U compinit && compinit # Only needed if you are NOT using Oh-My-Zsh
+```
+If you are using Oh-My-Zsh, the modification of the `fpath` array has to be inserted at any point [BEFORE](BEFORE) the initialization of Oh-My-Zsh (`source $ZSH/oh-my-zsh.sh`). In both cases, you will need to delete all `.zcompdump*` files in your home directory and open a new zsh session (or run `source ~/.zshrc`) to enable this functionality the first time, or when updating this package.
+
 
 ### Kerberos
 

@@ -1,0 +1,200 @@
+#compdef lcp
+
+function _lcp_debug() {
+    #echo "$@" >> /tmp/lcp_autocomplete_debug.log
+}
+
+function _lcp() {
+    _arguments -C \
+        '(-u --user)'{-u,--user}'[ssh user]:user:' \
+        '*:path:_lcp_path'
+}
+
+_lcp_path() {
+    #_lcp_debug "Starting _lcp_path"
+
+    # Current argument
+    local cur="${words[$CURRENT]}"
+    
+    # Remote source/dest
+    if [[ $cur == *:* ]]; then
+        # Default username
+        local user=""
+        if [[ ! -z "$CERN_USERNAME" ]]; then
+            user="$CERN_USERNAME"
+        else
+            user="$USER"
+        fi
+
+        # Parse all arguments
+        local lxhost_arg=""
+        for (( i=1; i <= CURRENT; i++ )); do
+            case "${words[i]}" in
+                -u|--user)
+                    user="${words[i+1]}"
+                    ((i++))
+                    ;;
+                *:* )
+                    # We need to look for the last (potentially previous) explicit host:path argument
+                    if [[ ${words[i]} != :* ]]; then
+                        lxhost_arg="${words[i]%%:*}"
+                    fi
+                    # If no explicit lxhost argument was provided, lxhost_arg will be empty, and we'll
+                    # correctly default to the lxplus.cern.ch hostname
+                    ;;
+            esac
+        done
+
+        # Parse the hostname with lxhost
+        local host="$(lxhost $lxhost_arg)"
+
+
+        #------------------------------------------
+        # Initialize kerberos token
+        #------------------------------------------
+        # First check if we have a valid ticket already
+        if [[ $(kerb -c 2>/dev/null) != "There is a valid Kerberos ticket already for "* ]]; then
+            kerb -r $user > /dev/null 2>&1
+        fi
+
+
+        #------------------------------------------
+        # Get target user/host
+        #------------------------------------------
+        local target="${user}@${host}"
+
+
+        #------------------------------------------
+        # Get ControlMaster directory path
+        #------------------------------------------
+        if [[ "$(uname)" == "Linux" ]]; then
+            CM_PATH="/run/user/$(id -u)"
+        elif [[ "$(uname)" == "Darwin" ]]; then
+            CM_PATH="$HOME/.ssh"
+        fi
+
+
+        #------------------------------------------
+        # ControlMaster session initialization
+        #------------------------------------------
+        if [[ ! -e "$CM_PATH/$target:22" ]]; then
+            sshcm-otp "$target" "$(pass otp "cern-${user}")" > /dev/null 2>&1
+        fi
+
+
+        #------------------------------------------
+        # Autocomplete the remote source/dest path
+        #------------------------------------------
+        # We need a modified implementation of _remote_files
+        # Based on https://github.com/zsh-users/zsh/blob/master/Completion/Unix/Type/_remote_files
+        
+        # Get the source/dest path (remove the hostname)
+        local rem_path="${PREFIX#*:}"
+        
+        # Get the directory of the path
+        # $QIPREFIX holds the quote prefix (if using any). We use it to check if
+        # we are inside a quoted console argumentm, which could contain whitespaces
+        if [[ -z $QIPREFIX ]]; then
+            rem_path="${rem_path%%[^./][^/]#}"
+        else
+            # '(q)' escapes any necessary characters (e.g. spaces) so that 
+            # the rem_path is safe to be used as a console argument
+            rem_path="${(q)rem_path%%[^./][^/]#}"
+        fi
+
+        # Get the remote filenames
+        # ls options:
+        # '-1' one entry per line
+        # '-F' appends '/' (dir), '@' (symlink), '*' (executable) when necessary
+        # '-L' follow symbolic links, so that links to directories show up as directories (suffixed 
+        #      with '/' due to -F) instead of links (suffixed with '@' due to -F)
+        # results parsing:
+        # '(f)' splits the output string on newlines
+        # '%%[^/]#(|/)' cleans up the non-'/' suffixes on each element (e.g. script* -> script, dir/ -> dir/, file.txt -> file.txt)
+        # (M) keep only elements matching the current completion pattern (managed internally by zsh)
+        local rem_files=(${(M)${(f)"$(
+            _call_program files ssh -o BatchMode=yes -a -x $host \
+                command ls -1FL -- "$rem_path" 2>/dev/null
+        )"}%%[^/]#(|/)})
+
+        #_lcp_debug "Raw remote files/dirs: ${rem_files}"
+
+        # We want to autocomplete and potentially replace ONLY the last term of the path.
+        # This changes depending on whether this is a sub-directory or the base dir
+        if [[ "${PREFIX}" = */* ]]; then
+            # This is a sub-directory:
+            compset -P '*/' # Ignored everything before the last '/'
+            compset -S '/*' # Ignore everything after the following '/'
+        else
+            # Base directory (usually home)
+            compset -P '*:' # Ignore everything before the ':'
+        fi
+
+        # Split entries between files (without trailing '/') and directories (with trailing '/')
+        local rem_disp_files=(${rem_files:#*/})
+        local rem_disp_dirs=(${(M)rem_files:#*/})
+
+        # Apply glob-filtering to the files (only if active, with $glob managed by zsh)
+        if (( $#glob )); then
+            local match=( '(|[*=|])' ) # Pattern fragment used later for escaping
+            # Clean up the glob pattern,m producing a normalized glob suitable for matching filenames:
+            # - Remove trailing markers added by the completion system
+            # - Strip pattern flags like 'p' (pattern), '=', or '*'
+            # - '(#b)' enables backreferences
+            # - '(#e)' anchors the match to the end
+            glob[2]="${glob[2]/(#b)\(((|^)[p=\*])\)(#e)/}"
+            # Append a safe suffix pattern so the glob matches both files and directories,
+            # and matches optional classification characters (*, =, |)
+            # This compensates for the ls -F output, which appends symbols.
+            glob[2]+="${${match[1]/p/\|}/\*/\*}"
+            # Apply the globbing:
+            # '${~glob[2]}' treats 'glob[2]' as a real glob
+            # '(M)' keeps only matching elements
+            # ':#<glob-pattern>' matches against the glob pattern
+            rem_disp_files=( ${(M)rem_disp_files:#${~glob[2]}} )
+        fi
+
+        # Quote/escape the autocompletion results
+        if (( $#esc )); then # Escaping is explicitly required (inside quotes or if special escape handling is requested)
+            # Remove ls -F suffixes (*, =, |), 
+            # find special characters that need escaping ('esc[2]'),
+            # and prefix them with '\'
+            local rem_disp_files_quoted=(${${rem_disp_files%[*=|]}//(#b)(${~esc[2]})/\\$match[1]})
+            # Same logic, but we remove trailing '/' instead of '*', '=', or '|'
+            local rem_disp_dirs_quoted=(${${rem_disp_dirs%/}//(#b)(${~esc[2]})/\\$match[1]})
+        else
+            # '(q)': wrap in quotes,
+            # strip ls -F classification suffixes (*, =, |).
+            # We let zsh to handle escaping automatically
+            local rem_disp_files_quoted=(${(q)rem_disp_files%[*=|]})
+            # Same logic, but we remove trailing '/' instead of '*', '=', or '|'
+            local rem_disp_dirs_quoted=(${(q)rem_disp_dirs%/})
+        fi
+
+        #_lcp_debug "Files: ${rem_disp_files_quoted}"
+        #_lcp_debug "Dirs: ${rem_disp_dirs_quoted}"
+
+        # Check if we need to auto-remove trailing directory '/'s before inserting the completion
+        local -a autoremove
+        [[ -o autoremoveslash ]] && autoremove=(-r "/ \t\n\-")
+
+        # The following autocompletion candidates belong to the 'remote-files' tag,
+        # so that we can customize them with zstyle
+        _tags remote-files
+        local expl
+        while _tags; do # Only one (unless disabled through zstyle) tag
+            while _next_label remote-files expl "remote file"; do # Expl becomes an array holding explanation strings passed to compadd
+                compadd "$expl[@]" -d rem_disp_files -- $rem_disp_files_quoted
+                compadd -S/ $autoremove "$expl[@]" -d directory -- $rem_disp_dirs_quoted
+            done
+        done
+
+    # Local source/dest
+    else
+        _files
+    fi
+
+    #_lcp_debug "Exitting _lcp_path"
+    #_lcp_debug ""
+    #_lcp_debug ""
+}
