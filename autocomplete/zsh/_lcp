@@ -1,13 +1,15 @@
 #compdef lcp
-
-function _lcp_debug() {
-    #echo "$@" >> /tmp/lcp_autocomplete_debug.log
-}
+# Copyright (C) 2026 Jean Yves Beaucamp
+# CERN LXPlus lcp zsh auto-completion
 
 function _lcp() {
     _arguments -C \
         '(-u --user)'{-u,--user}'[ssh user]:user:' \
         '*:path:_lcp_path'
+}
+
+function _lcp_debug() {
+    #echo "$@" >> /tmp/lcp_autocomplete_debug.log
 }
 
 _lcp_path() {

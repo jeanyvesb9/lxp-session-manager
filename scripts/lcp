@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Copyright (C) 2025 Jean Yves Beaucamp
-# CERN LXPlus ssh connection manager
+# Copyright (C) 2026 Jean Yves Beaucamp
+# CERN LXPlus rsync wrapper
 
 if [[ ! -z "$CERN_USERNAME" ]]; then
     user="$CERN_USERNAME"

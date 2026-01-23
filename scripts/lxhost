@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (C) 2025 Jean Yves Beaucamp
+# Copyright (C) 2026 Jean Yves Beaucamp
 # CERN LXPlus/LXTunnel/alike hostname builder
 
 host_arg=""
