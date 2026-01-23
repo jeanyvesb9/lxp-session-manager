@@ -216,6 +216,7 @@ if [[ "$do_cm_exit_only" = true ]]; then
         for cm_session in "${cms[@]}"; do
             if [[ "$cm_session" == "$target" ]]; then
                 ssh -O exit "$cm_session"
+                exit 0
             fi
         done
 
