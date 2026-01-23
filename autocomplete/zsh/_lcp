@@ -9,7 +9,7 @@ function _lcp() {
 }
 
 function _lcp_debug() {
-    #echo "$@" >> /tmp/lcp_autocomplete_debug.log
+    echo "$@" >> /tmp/lcp_autocomplete_debug.log
 }
 
 _lcp_path() {
@@ -30,6 +30,7 @@ _lcp_path() {
 
         # Parse all arguments
         local lxhost_arg=""
+        local parsed_first_host=false
         for (( i=1; i <= CURRENT; i++ )); do
             case "${words[i]}" in
                 -u|--user)
@@ -39,8 +40,18 @@ _lcp_path() {
                 *:* )
                     # We need to look for the last (potentially previous) explicit host:path argument
                     if [[ ${words[i]} != :* ]]; then
-                        lxhost_arg="${words[i]%%:*}"
+                        local this_lxhost_arg="${words[i]%%:*}"
+
+                        # Check that this lxhost arg isn't different than the first one
+                        if [[ "$parsed_first_host" = true ]] && [[ "$lxhost_arg" != "$this_lxhost_arg" ]]; then
+                            # We cannot use multiple hosts in lcp, so we'll just exit
+                            return 0
+                        fi
+
+                        lxhost_arg="$this_lxhost_arg"
                     fi
+                    parsed_first_host=true
+
                     # If no explicit lxhost argument was provided, lxhost_arg will be empty, and we'll
                     # correctly default to the lxplus.cern.ch hostname
                     ;;
